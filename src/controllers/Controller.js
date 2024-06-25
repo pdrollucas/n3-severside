@@ -1,3 +1,6 @@
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
 class Controller {
   constructor(entidadeService) {
     this.entidadeService = entidadeService;
@@ -29,6 +32,49 @@ class Controller {
       return res.status(200).json(novoRegistroCriado);
     } catch (erro) {
       // erro
+    }
+  }
+
+  async criarUsuario(req, res) {
+    const dadosParaCriacao = req.body;
+
+    try {
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(dadosParaCriacao.usuario_senha, saltRounds);
+
+      dadosParaCriacao.usuario_senha = hashedPassword;
+
+      const novoUsuarioCriado = await this.entidadeService.criaRegistro(dadosParaCriacao);
+      return res.status(200).json(novoUsuarioCriado);
+    } catch (erro) {
+      return res.status(500).json({ erro: 'Erro ao criar usuário' });
+    }
+  }
+
+  async loginUsuario(req, res) {
+    const { usuario_nome, usuario_senha } = req.body;
+
+    try {
+      const usuario = await this.entidadeService.buscaRegistroPorNome(usuario_nome);
+      if (!usuario) {
+        return res.status(400).json({ erro: 'Usuário não encontrado' });
+      }
+
+      const senhaCorreta = await bcrypt.compare(usuario_senha, usuario.usuario_senha);
+      if (!senhaCorreta) {
+        return res.status(400).json({ erro: 'Senha incorreta' });
+      }
+
+      const token = jwt.sign(
+        { id: usuario.id, nome: usuario.usuario_nome },
+        'seuSegredoJWT',
+        { expiresIn: '1h' }
+      );
+
+      return res.status(200).json({ token, usuario: { id: usuario.id, nome: usuario.usuario_nome } });
+    } catch (erro) {
+      console.log(erro);
+      return res.status(500).json({ erro: 'Erro ao fazer login' });
     }
   }
   
